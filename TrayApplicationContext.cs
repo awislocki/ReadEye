@@ -332,13 +332,13 @@ namespace ReadEye
                         }
                         else
                         {
-                            // Inactive state: Distinct dim red eye outline and center dot
-                            // (Very visible on dark/light taskbars, but clearly passive/dimmed)
-                            using (Pen ringPen = new Pen(Color.FromArgb(80, 244, 67, 54), 1.5f))
+                            // Inactive state: Distinct solid gray eye outline and center dot (100% opacity)
+                            // (Clearly visible on both dark and light taskbars, universally representing 'Passive')
+                            using (Pen ringPen = new Pen(Color.FromArgb(160, 160, 160), 1.5f))
                             {
                                 g.DrawEllipse(ringPen, 2, 2, 11, 11);
                             }
-                            using (Brush dotBrush = new SolidBrush(Color.FromArgb(80, 244, 67, 54)))
+                            using (Brush dotBrush = new SolidBrush(Color.FromArgb(160, 160, 160)))
                             {
                                 g.FillEllipse(dotBrush, 6, 6, 4, 4);
                             }
