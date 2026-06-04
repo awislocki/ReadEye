@@ -203,143 +203,164 @@ namespace ReadEye
 
         private void StateTimer_Tick(object? sender, EventArgs e)
         {
-            if (isAwakeActive && hasExpiration)
+            try
             {
-                TimeSpan remaining = expirationTime - DateTime.Now;
-                if (remaining <= TimeSpan.Zero)
+                if (isAwakeActive && hasExpiration)
                 {
-                    // Timer expired! Toggle inactive and inform user
-                    SetAwakeState(false);
-                    notifyIcon.ShowBalloonTip(3000, "ReadEye", "Awake timer completed. Sleep prevention disabled.", ToolTipIcon.Info);
+                    TimeSpan remaining = expirationTime - DateTime.Now;
+                    if (remaining <= TimeSpan.Zero)
+                    {
+                        // Timer expired! Toggle inactive and inform user
+                        SetAwakeState(false);
+                        notifyIcon.ShowBalloonTip(3000, "ReadEye", "Awake timer completed. Sleep prevention disabled.", ToolTipIcon.Info);
+                    }
+                    else
+                    {
+                        UpdateTrayIconAndTooltip();
+                    }
                 }
-                else
-                {
-                    UpdateTrayIconAndTooltip();
-                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"StateTimer_Tick error: {ex.Message}");
             }
         }
 
         private void JigglerTimer_Tick(object? sender, EventArgs e)
         {
-            if (isAwakeActive && isJigglerMode)
+            try
             {
-                NativeMethods.SimulateActivity();
+                if (isAwakeActive && isJigglerMode)
+                {
+                    NativeMethods.SimulateActivity();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"JigglerTimer_Tick error: {ex.Message}");
             }
         }
 
         private void UpdateTrayIconAndTooltip()
         {
-            float progressPercentage = -1f;
-            string statusText = "ReadEye: Passive";
-
-            if (isAwakeActive)
+            try
             {
-                if (hasExpiration)
+                float progressPercentage = -1f;
+                string statusText = "ReadEye: Passive";
+
+                if (isAwakeActive)
                 {
-                    TimeSpan total = expirationTime - sessionStartTime;
-                    TimeSpan remaining = expirationTime - DateTime.Now;
+                    if (hasExpiration)
+                    {
+                        TimeSpan total = expirationTime - sessionStartTime;
+                        TimeSpan remaining = expirationTime - DateTime.Now;
 
-                    if (total.TotalSeconds > 0)
-                    {
-                        progressPercentage = (float)(remaining.TotalSeconds / total.TotalSeconds);
-                        progressPercentage = Math.Clamp(progressPercentage, 0f, 1f);
-                    }
+                        if (total.TotalSeconds > 0)
+                        {
+                            progressPercentage = (float)(remaining.TotalSeconds / total.TotalSeconds);
+                            progressPercentage = Math.Clamp(progressPercentage, 0f, 1f);
+                        }
 
-                    // Format nicely: e.g. "1h 12m remaining"
-                    string timeStr;
-                    if (remaining.TotalHours >= 1)
-                    {
-                        timeStr = $"{(int)remaining.TotalHours}h {remaining.Minutes}m";
-                    }
-                    else if (remaining.TotalMinutes >= 1)
-                    {
-                        timeStr = $"{remaining.Minutes}m {remaining.Seconds}s";
+                        // Format nicely: e.g. "1h 12m remaining"
+                        string timeStr;
+                        if (remaining.TotalHours >= 1)
+                        {
+                            timeStr = $"{(int)remaining.TotalHours}h {remaining.Minutes}m";
+                        }
+                        else if (remaining.TotalMinutes >= 1)
+                        {
+                            timeStr = $"{remaining.Minutes}m {remaining.Seconds}s";
+                        }
+                        else
+                        {
+                            timeStr = $"{remaining.Seconds}s";
+                        }
+
+                        statusText = $"ReadEye: Active ({timeStr} remaining)";
                     }
                     else
                     {
-                        timeStr = $"{remaining.Seconds}s";
+                        statusText = "ReadEye: Active (Indefinitely)";
                     }
-
-                    statusText = $"ReadEye: Active ({timeStr} remaining)";
                 }
-                else
+
+                // Update Status in menu item and tooltip
+                itemStatus.Text = statusText;
+                notifyIcon.Text = statusText;
+
+                // Dynamic painting of tray icon
+                using (Bitmap bitmap = new Bitmap(16, 16))
                 {
-                    statusText = "ReadEye: Active (Indefinitely)";
-                }
-            }
-
-            // Update Status in menu item and tooltip
-            itemStatus.Text = statusText;
-            notifyIcon.Text = statusText;
-
-            // Dynamic painting of tray icon
-            using (Bitmap bitmap = new Bitmap(16, 16))
-            {
-                using (Graphics g = Graphics.FromImage(bitmap))
-                {
-                    g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                    g.Clear(Color.Transparent);
-
-                    if (isAwakeActive)
+                    using (Graphics g = Graphics.FromImage(bitmap))
                     {
-                        if (progressPercentage >= 0)
+                        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                        g.Clear(Color.Transparent);
+
+                        if (isAwakeActive)
                         {
-                            // Background ring (dim red background track)
-                            using (Pen bgPen = new Pen(Color.FromArgb(60, 244, 67, 54), 1.5f))
+                            if (progressPercentage >= 0)
                             {
-                                g.DrawEllipse(bgPen, 1, 1, 13, 13);
+                                // Background ring (dim red background track)
+                                using (Pen bgPen = new Pen(Color.FromArgb(60, 244, 67, 54), 1.5f))
+                                {
+                                    g.DrawEllipse(bgPen, 1, 1, 13, 13);
+                                }
+                                // Foreground active arc (vibrant cyan progress)
+                                using (Pen activePen = new Pen(Color.FromArgb(0, 188, 212), 1.5f))
+                                {
+                                    float sweepAngle = 360f * progressPercentage;
+                                    g.DrawArc(activePen, 1, 1, 13, 13, -90, sweepAngle);
+                                }
+                                // Central eye dot (vibrant red)
+                                using (Brush dotBrush = new SolidBrush(Color.FromArgb(244, 67, 54)))
+                                {
+                                    g.FillEllipse(dotBrush, 5, 5, 6, 6);
+                                }
                             }
-                            // Foreground active arc (vibrant cyan progress)
-                            using (Pen activePen = new Pen(Color.FromArgb(0, 188, 212), 1.5f))
+                            else
                             {
-                                float sweepAngle = 360f * progressPercentage;
-                                g.DrawArc(activePen, 1, 1, 13, 13, -90, sweepAngle);
-                            }
-                            // Central eye dot (vibrant red)
-                            using (Brush dotBrush = new SolidBrush(Color.FromArgb(244, 67, 54)))
-                            {
-                                g.FillEllipse(dotBrush, 5, 5, 6, 6);
+                                // Indefinite Active state: Glowing red ring and center dot
+                                using (Pen ringPen = new Pen(Color.FromArgb(244, 67, 54), 1.5f))
+                                {
+                                    g.DrawEllipse(ringPen, 1, 1, 13, 13);
+                                }
+                                using (Brush dotBrush = new SolidBrush(Color.FromArgb(244, 67, 54)))
+                                {
+                                    g.FillEllipse(dotBrush, 5, 5, 6, 6);
+                                }
                             }
                         }
                         else
                         {
-                            // Indefinite Active state: Glowing red ring and center dot
-                            using (Pen ringPen = new Pen(Color.FromArgb(244, 67, 54), 1.5f))
+                            // Inactive state: Distinct dim red eye outline and center dot
+                            // (Very visible on dark/light taskbars, but clearly passive/dimmed)
+                            using (Pen ringPen = new Pen(Color.FromArgb(80, 244, 67, 54), 1.5f))
                             {
-                                g.DrawEllipse(ringPen, 1, 1, 13, 13);
+                                g.DrawEllipse(ringPen, 2, 2, 11, 11);
                             }
-                            using (Brush dotBrush = new SolidBrush(Color.FromArgb(244, 67, 54)))
+                            using (Brush dotBrush = new SolidBrush(Color.FromArgb(80, 244, 67, 54)))
                             {
-                                g.FillEllipse(dotBrush, 5, 5, 6, 6);
+                                g.FillEllipse(dotBrush, 6, 6, 4, 4);
                             }
                         }
                     }
-                    else
+
+                    IntPtr newHIcon = bitmap.GetHicon();
+                    Icon newIcon = Icon.FromHandle(newHIcon);
+
+                    notifyIcon.Icon = newIcon;
+
+                    // Safely clean up previous native icon handle to prevent leaks
+                    if (currentIconHandle != IntPtr.Zero)
                     {
-                        // Inactive state: Distinct dim red eye outline and center dot
-                        // (Very visible on dark/light taskbars, but clearly passive/dimmed)
-                        using (Pen ringPen = new Pen(Color.FromArgb(80, 244, 67, 54), 1.5f))
-                        {
-                            g.DrawEllipse(ringPen, 2, 2, 11, 11);
-                        }
-                        using (Brush dotBrush = new SolidBrush(Color.FromArgb(80, 244, 67, 54)))
-                        {
-                            g.FillEllipse(dotBrush, 6, 6, 4, 4);
-                        }
+                        DestroyIcon(currentIconHandle);
                     }
+                    currentIconHandle = newHIcon;
                 }
-
-                IntPtr newHIcon = bitmap.GetHicon();
-                Icon newIcon = Icon.FromHandle(newHIcon);
-
-                notifyIcon.Icon = newIcon;
-
-                // Safely clean up previous native icon handle to prevent leaks
-                if (currentIconHandle != IntPtr.Zero)
-                {
-                    DestroyIcon(currentIconHandle);
-                }
-                currentIconHandle = newHIcon;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"UpdateTrayIconAndTooltip error: {ex.Message}");
             }
         }
 
