@@ -100,7 +100,7 @@ namespace ReadEye
 
             // Options Submenu
             var itemOptions = new ToolStripMenuItem("Settings");
-            itemJigglerMode = new ToolStripMenuItem("Keep Teams/Status Active (Jiggler)", null, ToggleJigglerMode_Click) { Checked = isJigglerMode };
+            itemJigglerMode = new ToolStripMenuItem("Keep Teams/Slack Active (Jiggler)", null, ToggleJigglerMode_Click) { Checked = isJigglerMode };
             itemLidClose = new ToolStripMenuItem("Turn Off When Lid Closes", null, ToggleLidClose_Click) { Checked = disableOnLidClose };
             itemStartup = new ToolStripMenuItem("Start on Windows Startup", null, ToggleStartup_Click) { Checked = IsStartupEnabled() };
 
