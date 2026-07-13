@@ -16,22 +16,31 @@ namespace ReadEye
         private readonly System.Windows.Forms.Timer stateTimer;
         private readonly System.Windows.Forms.Timer jigglerTimer;
 
+        private const string SettingsKeyPath = @"Software\ReadEye";
+
         // State variables
         private bool isAwakeActive = false;
-        private bool isJigglerMode = false;
+        private bool isJigglerMode = true;
+        private bool disableOnLidClose = true;
         private bool hasExpiration = false;
         private DateTime expirationTime = DateTime.MinValue;
         private DateTime sessionStartTime = DateTime.MinValue;
         private IntPtr currentIconHandle = IntPtr.Zero;
+        private readonly LidMonitor lidMonitor;
 
         // Menu items that need dynamic updates
         private ToolStripMenuItem itemStatus = null!;
         private ToolStripMenuItem itemToggle = null!;
         private ToolStripMenuItem itemJigglerMode = null!;
+        private ToolStripMenuItem itemLidClose = null!;
         private ToolStripMenuItem itemStartup = null!;
 
         public TrayApplicationContext()
         {
+            // Load persisted settings before building the menu (defaults: jiggler on, turn-off-on-lid-close on)
+            isJigglerMode = ReadSetting("JigglerMode", true);
+            disableOnLidClose = ReadSetting("DisableOnLidClose", true);
+
             // Initialize Context Menu
             contextMenu = new ContextMenuStrip();
             InitializeContextMenu();
@@ -53,15 +62,19 @@ namespace ReadEye
             jigglerTimer = new System.Windows.Forms.Timer { Interval = 50000 };
             jigglerTimer.Tick += JigglerTimer_Tick;
 
-            // Set initial state & generate icon
-            SetAwakeState(false);
+            // Lid monitor (turns off keep-awake when the laptop lid closes, if enabled)
+            lidMonitor = new LidMonitor();
+            lidMonitor.LidStateChanged += LidMonitor_LidStateChanged;
+
+            // Set initial state & generate icon (active by default so Teams stays awake immediately)
+            SetAwakeState(true);
             UpdateTrayIconAndTooltip();
 
             // Now make it visible after the icon is assigned
             notifyIcon.Visible = true;
 
             // Show a startup notification
-            notifyIcon.ShowBalloonTip(2000, "ReadEye", "ReadEye is running in the system tray.", ToolTipIcon.Info);
+            notifyIcon.ShowBalloonTip(2000, "ReadEye", "ReadEye is running and keeping your system awake.", ToolTipIcon.Info);
         }
 
         private void InitializeContextMenu()
@@ -82,12 +95,17 @@ namespace ReadEye
             itemTimers.DropDownItems.Add(new ToolStripSeparator());
             itemTimers.DropDownItems.Add(new ToolStripMenuItem("Custom Time...", null, CustomTime_Click));
 
+            // Enable Until (opens the picker preset to "until specific time")
+            var itemUntil = new ToolStripMenuItem("Enable Until...", null, EnableUntil_Click);
+
             // Options Submenu
             var itemOptions = new ToolStripMenuItem("Settings");
-            itemJigglerMode = new ToolStripMenuItem("Keep Teams/Status Active (Jiggler)", null, ToggleJigglerMode_Click) { Checked = isJigglerMode };
+            itemJigglerMode = new ToolStripMenuItem("Keep Teams/Slack Active (Jiggler)", null, ToggleJigglerMode_Click) { Checked = isJigglerMode };
+            itemLidClose = new ToolStripMenuItem("Turn Off When Lid Closes", null, ToggleLidClose_Click) { Checked = disableOnLidClose };
             itemStartup = new ToolStripMenuItem("Start on Windows Startup", null, ToggleStartup_Click) { Checked = IsStartupEnabled() };
 
             itemOptions.DropDownItems.Add(itemJigglerMode);
+            itemOptions.DropDownItems.Add(itemLidClose);
             itemOptions.DropDownItems.Add(new ToolStripSeparator());
             itemOptions.DropDownItems.Add(itemStartup);
 
@@ -99,6 +117,7 @@ namespace ReadEye
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add(itemToggle);
             contextMenu.Items.Add(itemTimers);
+            contextMenu.Items.Add(itemUntil);
             contextMenu.Items.Add(itemOptions);
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add(itemExit);
@@ -144,15 +163,46 @@ namespace ReadEye
             }
         }
 
+        private void EnableUntil_Click(object? sender, EventArgs e)
+        {
+            using (var form = new CustomTimeForm(defaultToEndTime: true))
+            {
+                if (form.ShowDialog() == DialogResult.OK)
+                {
+                    sessionStartTime = DateTime.Now;
+                    expirationTime = form.SelectedEndTime;
+                    hasExpiration = true;
+                    SetAwakeState(true);
+                }
+            }
+        }
+
         private void ToggleJigglerMode_Click(object? sender, EventArgs e)
         {
             isJigglerMode = !isJigglerMode;
             itemJigglerMode.Checked = isJigglerMode;
+            WriteSetting("JigglerMode", isJigglerMode);
 
             // Re-apply states if currently active
             if (isAwakeActive)
             {
                 ApplySystemWakeState(true);
+            }
+        }
+
+        private void ToggleLidClose_Click(object? sender, EventArgs e)
+        {
+            disableOnLidClose = !disableOnLidClose;
+            itemLidClose.Checked = disableOnLidClose;
+            WriteSetting("DisableOnLidClose", disableOnLidClose);
+        }
+
+        private void LidMonitor_LidStateChanged(bool lidOpen)
+        {
+            if (!lidOpen && disableOnLidClose && isAwakeActive)
+            {
+                SetAwakeState(false);
+                notifyIcon.ShowBalloonTip(3000, "ReadEye", "Lid closed. Sleep prevention disabled.", ToolTipIcon.Info);
             }
         }
 
@@ -364,6 +414,42 @@ namespace ReadEye
             }
         }
 
+        // --- Settings Persistence (HKCU\Software\ReadEye) ---
+
+        private static bool ReadSetting(string name, bool defaultValue)
+        {
+            try
+            {
+                using (RegistryKey? key = Registry.CurrentUser.OpenSubKey(SettingsKeyPath, false))
+                {
+                    if (key?.GetValue(name) is int val)
+                    {
+                        return val != 0;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to read setting '{name}': {ex.Message}");
+            }
+            return defaultValue;
+        }
+
+        private static void WriteSetting(string name, bool value)
+        {
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.CreateSubKey(SettingsKeyPath))
+                {
+                    key.SetValue(name, value ? 1 : 0, RegistryValueKind.DWord);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to write setting '{name}': {ex.Message}");
+            }
+        }
+
         // --- Windows Startup Registry Integration ---
 
         private bool IsStartupEnabled()
@@ -441,6 +527,7 @@ namespace ReadEye
                 stateTimer.Dispose();
                 jigglerTimer.Dispose();
                 contextMenu.Dispose();
+                lidMonitor.Dispose();
             }
             base.Dispose(disposing);
         }

@@ -7,3 +7,5 @@ obj/
 log.txt
 crash.txt
 *.png
+native/*.obj
+native/test_dialog.exe
