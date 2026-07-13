@@ -19,8 +19,11 @@ namespace ReadEye
         public TimeSpan SelectedDuration { get; private set; }
         public DateTime SelectedEndTime { get; private set; }
 
-        public CustomTimeForm()
+        private readonly bool defaultToEndTime;
+
+        public CustomTimeForm(bool defaultToEndTime = false)
         {
+            this.defaultToEndTime = defaultToEndTime;
             InitializeComponent();
         }
 
@@ -69,7 +72,7 @@ namespace ReadEye
                 Font = labelFont,
                 Location = new Point(20, 65),
                 Size = new Size(340, 24),
-                Checked = true
+                Checked = !defaultToEndTime
             };
             rbDuration.CheckedChanged += Option_CheckedChanged;
             this.Controls.Add(rbDuration);
@@ -136,7 +139,8 @@ namespace ReadEye
                 Text = "Until specific time",
                 Font = labelFont,
                 Location = new Point(20, 140),
-                Size = new Size(340, 24)
+                Size = new Size(340, 24),
+                Checked = defaultToEndTime
             };
             rbEndTime.CheckedChanged += Option_CheckedChanged;
             this.Controls.Add(rbEndTime);

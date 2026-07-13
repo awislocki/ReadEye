@@ -18,6 +18,27 @@ namespace ReadEye
         [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         public static extern EXECUTION_STATE SetThreadExecutionState(EXECUTION_STATE esFlags);
 
+        // --- Lid switch power notification API ---
+        public static readonly Guid GUID_LIDSWITCH_STATE_CHANGE = new Guid("BA3E0F4D-B817-4094-A2D1-D56379E6A0F3");
+
+        public const int WM_POWERBROADCAST = 0x0218;
+        public const int PBT_POWERSETTINGCHANGE = 0x8013;
+        public const int DEVICE_NOTIFY_WINDOW_HANDLE = 0x00000000;
+
+        [StructLayout(LayoutKind.Sequential, Pack = 4)]
+        public struct POWERBROADCAST_SETTING
+        {
+            public Guid PowerSetting;
+            public uint DataLength;
+            public byte Data;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern IntPtr RegisterPowerSettingNotification(IntPtr hRecipient, ref Guid PowerSettingGuid, int Flags);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool UnregisterPowerSettingNotification(IntPtr handle);
+
         // --- Simulate input API (Jiggler mode fallback) ---
         private const int INPUT_KEYBOARD = 1;
         private const uint KEYEVENTF_KEYUP = 0x0002;
