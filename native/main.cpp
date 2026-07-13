@@ -364,13 +364,8 @@ static INT_PTR CALLBACK TimerDlgProc(HWND hDlg, UINT msg, WPARAM wParam, LPARAM 
         SetDlgItemInt(hDlg, IDC_ED_HOURS, 0, FALSE);
         SetDlgItemInt(hDlg, IDC_ED_MINS, 30, FALSE);
 
-        // Default "until" time: one hour from now
-        time_t later = time(nullptr) + 3600;
-        struct tm lt;
-        localtime_s(&lt, &later);
-        wchar_t buf[8];
-        swprintf(buf, 8, L"%02d:%02d", lt.tm_hour, lt.tm_min);
-        SetDlgItemTextW(hDlg, IDC_ED_TIME, buf);
+        // Default "until" time: 4:30 PM (end of workday)
+        SetDlgItemTextW(hDlg, IDC_ED_TIME, L"16:30");
 
         DlgEnableGroups(hDlg);
         return TRUE;

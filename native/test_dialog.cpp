@@ -30,6 +30,14 @@ static unsigned __stdcall DriverThread(void*)
         ExitProcess(3);
     }
 
+    wchar_t defaultTime[16] = {};
+    GetDlgItemTextW(dlg, IDC_ED_TIME, defaultTime, 16);
+    if (wcscmp(defaultTime, L"16:30") != 0)
+    {
+        printf("FAIL: default until time is not 16:30 (got %ls)\n", defaultTime);
+        ExitProcess(5);
+    }
+
     SetDlgItemTextW(dlg, IDC_ED_TIME, L"23:45");
     SendMessageW(dlg, WM_COMMAND, IDOK, 0);
     return 0;

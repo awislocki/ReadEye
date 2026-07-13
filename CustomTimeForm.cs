@@ -170,7 +170,8 @@ namespace ReadEye
                 Format = DateTimePickerFormat.Time,
                 ShowUpDown = true,
                 Location = new Point(50, 4),
-                Size = new Size(110, 24)
+                Size = new Size(110, 24),
+                Value = DateTime.Today.AddHours(16.5) // default: 4:30 PM
             };
             pnlEndTime.Controls.Add(lblTime);
             pnlEndTime.Controls.Add(dtpEndTime);
